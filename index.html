@@ -6,8 +6,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>PLOOP</title>
 <meta name="description" content="여행·모임 정산을 링크 하나로 같이 정리해요">
-<meta property="og:title" content="정산하기">
-<meta property="og:description" content="링크를 받은 사람 누구나 같이 입력하는 실시간 정산">
+<meta property="og:title" content="PLOOP">
+<meta property="og:description" content="링크만 공유하면 누구나 함께 일정 관리부터 정산까지!">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧾</text></svg>">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -768,7 +768,7 @@ function write(path,body){
   const prev=chains.get(path)||Promise.resolve();
   const p=prev.then(()=>body===null?db.doc(path).delete():db.doc(path).set(body)).then(()=>{savedAt=new Date();},e=>{
     known.delete(path);
-    if(e&&(e.code==="invalid_argument"||e.code==="permission-denied")){setReadOnly(true);}
+    if(e&&(e.code==="invalid_argument"||e.code==="permission-denied")){syncError(e);}
     else if(e&&(e.code==="quota_exceeded"||e.code==="resource-exhausted"))toast("저장 공간이 가득 찼어요. 오래된 정산을 지워주세요");
   }).finally(()=>{inflight--;if(chains.get(path)===p)chains.delete(path);setStatus();});
   chains.set(path,p);return p;
@@ -792,8 +792,28 @@ async function saveNow(){
 window.addEventListener("keydown",e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="s"){e.preventDefault();saveNow();}});
 
 function editing(){const a=document.activeElement;return a&&a!==document.body&&$("#app").contains(a)&&(a.tagName==="INPUT"||a.tagName==="SELECT");}
-function refresh(){if(editing()){needRender=true;recalc();}else{needRender=false;render();}}
-document.addEventListener("focusout",()=>setTimeout(()=>{if(needRender&&!editing()){needRender=false;render();}},0));
+let composing=false;
+document.addEventListener("compositionstart",()=>{composing=true;},true);
+document.addEventListener("compositionend",()=>{composing=false;if(needRender)setTimeout(refresh,0);},true);
+function focusKey(el){
+  const iid=el.closest("[data-iid]"),pid=el.closest("[data-pid]");
+  return {id:el.id,cls:[...el.classList].find(c=>c.startsWith("in-"))||"",iid:iid?iid.dataset.iid:"",pid:pid?pid.dataset.pid:"",s:el.selectionStart,e:el.selectionEnd};
+}
+function restoreFocus(k){
+  let el=k.id?document.getElementById(k.id):null;
+  if(!el&&k.cls)el=document.querySelector((k.iid?`[data-iid="${k.iid}"] `:"")+(k.pid?`[data-pid="${k.pid}"] `:"")+"."+k.cls);
+  if(!el)return;
+  el.focus({preventScroll:true});
+  try{if(k.s!=null)el.setSelectionRange(Math.min(k.s,el.value.length),Math.min(k.e,el.value.length));}catch(e){}
+}
+// show other people's changes right away, even while this person is typing somewhere
+function refresh(){
+  const a=document.activeElement;
+  if(composing||(a&&a.tagName==="SELECT"&&$("#app").contains(a))){needRender=true;recalc();return;}
+  const k=editing()?focusKey(a):null;
+  needRender=false;const y=scrollY;render();if(k){restoreFocus(k);scrollTo(0,y);}
+}
+document.addEventListener("focusout",()=>setTimeout(()=>{if(needRender&&!editing()&&!composing){needRender=false;render();}},0));
 
 // merge a remote collection into a local array, keeping local edits that are not yet saved
 function mergeList(arr,docs,pathOf,norm,make){
@@ -812,10 +832,13 @@ function mergeList(arr,docs,pathOf,norm,make){
   out.sort((a,b)=>(a.c||0)-(b.c||0));
   return out;
 }
-function setReadOnly(v){
+function setReadOnly(v,why){
   readOnly=v;document.body.classList.toggle("ro",v);
+  if(v)$("#roBanner").textContent=why||"연결이 끊겼어요. 새로고침하면 다시 같이 쓸 수 있어요.";
   $("#roBanner").hidden=!v;applyRO();setStatus();
 }
+const RULES_MSG="저장이 거부됐어요. Firebase 콘솔 > Firestore > 규칙 탭에 최신 firestore.rules를 붙여넣고 ‘게시’했는지 확인해주세요.";
+function syncError(e){console.error(e);setReadOnly(true,e&&e.code==="permission-denied"?RULES_MSG:"서버와 연결이 끊겼어요. 새로고침해주세요. ("+((e&&e.code)||"error")+")");}
 function applyRO(){
   if(!readOnly)return;
   document.querySelectorAll("#app input,#app select,#app button,.bottom button").forEach(el=>{
@@ -842,17 +865,17 @@ function subscribeTrip(tid){
     }
     for(const [id,rb] of remote){out.set(id,rb);known.set(pPlan(tid,id),J(rb));}
     tr.plan=planFrom(out);loaded.plan=true;refresh();
-  },()=>{});
+  },syncError);
   unsubItems=db.collection(`trips/${tid}/items`).onSnapshot(qs=>{
     const tr=state.trips.find(x=>x.id===tid);if(!tr||loaded.tid!==tid)return;
     tr.items=mergeList(tr.items,qs.docs,id=>pItem(tid,id),nItem,(id,r)=>({id,...r}));
     loaded.items=true;refresh();if(!busy())pushChanges();
-  },()=>{});
+  },syncError);
   unsubTx=db.collection(`trips/${tid}/transfers`).onSnapshot(qs=>{
     const tr=state.trips.find(x=>x.id===tid);if(!tr||loaded.tid!==tid)return;
     tr.transfers=mergeList(tr.transfers,qs.docs,id=>pTx(tid,id),nTx,(id,r)=>({id,...r}));
     loaded.transfers=true;refresh();
-  },()=>{});
+  },syncError);
 }
 function switchTrip(id){
   state.active=id;saveLocal();
@@ -922,7 +945,7 @@ async function connect(){
   }catch(e){console.error(e);$("#setupBanner").hidden=false;return;}
   LS_ACTIVE=LS+":active:"+room.id;
   let first=true;
-  db.collection("trips").onSnapshot(async qs=>{
+  db.collection("trips").onSnapshot({includeMetadataChanges:true},async qs=>{
     if(first){
       first=false;
       // a cached empty answer can arrive before the server's; wait for the real one so we never add a stray trip to an existing room
@@ -941,7 +964,7 @@ async function connect(){
     else refresh();
     setStatus();
     if(!busy())pushChanges();
-  },e=>{console.error(e);setReadOnly(true);});
+  },syncError);
 }
 const changed=()=>{recalc();save();};
 const changedAll=()=>{render();save();};

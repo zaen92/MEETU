@@ -725,12 +725,14 @@ const J=o=>JSON.stringify(o);
 const hhmm=d=>d.toLocaleTimeString("ko-KR",{hour:"numeric",minute:"2-digit"});
 const busy=()=>!!syncTimer||inflight>0;
 
+let connecting=false;
 function setStatus(){
   const dot=$("#syncDot");dot.classList.toggle("busy",busy());dot.classList.toggle("on",!busy());
   let txt;
   if(busy())txt="저장 중…";
   else if(shared)txt=(readOnly?"연결 끊김":"실시간 함께 쓰기")+(savedAt?` · ${hhmm(savedAt)} 저장됨`:"");
-  else txt=(savedAt?`${hhmm(savedAt)}에 저장됨 · `:"")+"이 기기에만 저장돼요";
+  else if(connecting)txt="서버에 연결하는 중…";
+  else txt=(savedAt?`${hhmm(savedAt)}에 저장됨 · `:"")+"이 기기에만 저장돼요 (친구와 공유 안 됨)";
   $("#syncText").textContent=txt;
 }
 function saveLocal(){
@@ -944,12 +946,18 @@ async function connect(){
     db={doc:p=>fdb.doc(R+p),collection:p=>fdb.collection(R+p)};
   }catch(e){console.error(e);$("#setupBanner").hidden=false;return;}
   LS_ACTIVE=LS+":active:"+room.id;
+  connecting=true;setStatus();
+  // never sit silently: if the server hasn't answered in 10s, say why it might be
+  setTimeout(()=>{if(!shared){connecting=false;setReadOnly(false);
+    $("#roBanner").textContent="Firebase 서버에 연결하지 못했어요. Firestore 데이터베이스를 만들었는지, 규칙을 ‘게시’했는지 확인해주세요. 지금 입력한 내용은 이 기기에만 저장돼요.";
+    $("#roBanner").hidden=false;setStatus();}},10000);
   let first=true;
   db.collection("trips").onSnapshot({includeMetadataChanges:true},async qs=>{
     if(first){
       first=false;
       // a cached empty answer can arrive before the server's; wait for the real one so we never add a stray trip to an existing room
       if(qs.empty&&qs.metadata&&qs.metadata.fromCache){first=true;return;}
+      connecting=false;$("#roBanner").hidden=!readOnly;
       shared=true;state={v:2,active:null,trips:[]};
     }
     state.trips=mergeList(state.trips,qs.docs,pTrip,nTrip,(id,r)=>({id,...r}));

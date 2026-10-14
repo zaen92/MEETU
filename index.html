@@ -8,14 +8,12 @@
 <meta name="description" content="여행·모임 정산을 링크 하나로 같이 정리해요">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Ploop">
-<meta property="og:site_name" content="Ploop">
 <meta property="og:title" content="Ploop | Plan + Loop">
 <meta property="og:description" content="링크만 공유하면 누구나 함께 일정 관리부터 정산까지!">
 <meta property="og:url" content="https://zaen92.github.io/PLOOP/">
 <meta property="og:image" content="https://zaen92.github.io/PLOOP/og-img.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧾</text></svg>">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="manifest" href="/PLOOP/manifest.json">
 <!-- 브라우저 및 홈 화면 아이콘 -->
@@ -78,6 +76,20 @@ input{min-width:0}
 
 .topbar{display:flex;align-items:center;gap:8px}
 .topbar .trips{flex:1;min-width:0}
+.trips-box{flex:1;min-width:0;position:relative}
+.trips-box::before,.trips-box::after{content:"";position:absolute;top:0;bottom:12px;width:28px;pointer-events:none;opacity:0;transition:opacity .15s;z-index:1}
+.trips-box::before{left:0;background:linear-gradient(90deg,var(--bg),transparent)}
+.trips-box::after{right:0;background:linear-gradient(270deg,var(--bg),transparent)}
+.trips-box.fade-l::before,.trips-box.fade-r::after{opacity:1}
+.trips{scroll-behavior:smooth}
+.tabs-add,.tabs-all{flex:none;height:36px;min-width:36px;border-radius:999px;background:var(--card);color:var(--sub);font-size:20px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:4px;margin-bottom:8px;box-shadow:inset 0 0 0 1px var(--fill-2)}
+.tabs-all{padding:0 10px;font-size:13px}
+.tabs-all b{font-size:13px}
+.tabs-add:hover,.tabs-all:hover{color:var(--blue);box-shadow:inset 0 0 0 1.5px var(--blue)}
+.tl-row{display:flex;align-items:center;justify-content:space-between;padding:14px 8px;border-bottom:1px solid var(--line);font-size:16px;font-weight:600;text-align:left}
+.tl-row small{color:var(--muted);font-weight:500}
+.tl-row.on{color:var(--blue)}
+.tl-row:hover{background:var(--fill)}
 .save{flex:none;padding:8px 16px;border-radius:999px;background:var(--blue);color:#fff;font-size:15px;font-weight:700;margin-bottom:8px}
 .save:active{background:var(--blue-press)}
 .save:disabled{opacity:.6}
@@ -534,7 +546,7 @@ option:disabled{color:var(--faint)}
     <label class="l-label" for="roomInput">정산방 ID</label>
     <div class="l-field">
       <span class="l-prefix" id="roomPrefix"></span>
-      <input id="roomInput" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="30" placeholder="sokcho-2026">
+      <input id="roomInput" type="text" inputmode="url" lang="en" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" maxlength="40" placeholder="sokcho-2026">
     </div>
     <div class="l-meta"><span id="roomMsg" class="l-msg"></span><span id="roomCount">0 / 30</span></div>
     <p class="l-rule">영어 소문자, 숫자, - 만 쓸 수 있어요. 이미 있는 ID면 그 방으로 들어가요.</p>
@@ -570,7 +582,9 @@ option:disabled{color:var(--faint)}
 
 <div class="wrap" id="app">
   <div class="topbar">
-    <nav class="trips" id="tabs" aria-label="정산 목록"></nav>
+    <div class="trips-box" id="tabsBox"><nav class="trips" id="tabs" aria-label="일정 목록"></nav></div>
+    <button class="tabs-all" id="tabsAll" aria-label="일정 전체 보기" title="일정 전체 보기" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><b id="tabsCount"></b></button>
+    <button class="tabs-add" id="addTrip" aria-label="새 일정 추가" title="새 일정">＋</button>
     <button class="save" id="saveBtn">저장</button>
   </div>
 
@@ -700,6 +714,13 @@ option:disabled{color:var(--faint)}
 </div>
 <div class="bottom"><div class="in"><button class="cta" id="addItem">지출 추가하기</button></div></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="psheet" id="tripSheet" hidden>
+  <div class="psheet-bg" data-tlclose></div>
+  <div class="psheet-box" role="dialog" aria-modal="true" aria-labelledby="tlTitle">
+    <div class="psheet-h"><strong id="tlTitle">일정 전체</strong><button class="more" data-tlclose aria-label="닫기">✕</button></div>
+    <div class="psheet-list" id="tripList"></div>
+  </div>
+</div>
 <div class="psheet" id="paysheet" hidden>
   <div class="psheet-bg" data-payclose></div>
   <form class="psheet-box" id="payForm" role="dialog" aria-modal="true" aria-labelledby="payTitle">
@@ -788,10 +809,16 @@ function compute(t){
 }
 
 /* ---------- render ---------- */
+const tripLabel=t=>t.name||`새 일정 ${state.trips.indexOf(t)+1}`;
 function renderTabs(){
-  $("#tabs").innerHTML=state.trips.map(t=>{const on=t.id===state.active,nm=esc(t.name||"제목 없음");
-    return `<span class="trip-wrap${on?" on":""}"><button class="trip" data-trip="${t.id}" aria-current="${on}">${nm}</button><button class="trip-x" data-deltrip="${t.id}" aria-label="${nm} 삭제" title="삭제">✕</button></span>`;}).join("")+`<button class="trip add" id="addTrip">+ 새 정산</button>`;
+  $("#tabs").innerHTML=state.trips.map(t=>{const on=t.id===state.active,nm=esc(tripLabel(t));
+    return `<span class="trip-wrap${on?" on":""}"><button class="trip" data-trip="${t.id}" aria-current="${on}">${nm}</button><button class="trip-x" data-deltrip="${t.id}" aria-label="${nm} 삭제" title="삭제">✕</button></span>`;}).join("");
+  $("#tabsAll").hidden=state.trips.length<3;$("#tabsCount").textContent=state.trips.length;
+  requestAnimationFrame(()=>{const nav=$("#tabs"),a=nav.querySelector(".trip-wrap.on");
+    if(a){const l=a.offsetLeft-nav.offsetLeft,r=l+a.offsetWidth;if(l<nav.scrollLeft)nav.scrollLeft=l-12;else if(r>nav.scrollLeft+nav.clientWidth)nav.scrollLeft=r-nav.clientWidth+12;}
+    tabFade();});
 }
+function tabFade(){const n=$("#tabs"),b=$("#tabsBox");b.classList.toggle("fade-l",n.scrollLeft>4);b.classList.toggle("fade-r",n.scrollLeft+n.clientWidth<n.scrollWidth-4);}
 function deleteTrip(id){
   const t=state.trips.find(x=>x.id===id);if(!t)return;
   if(!confirm(`‘${t.name||"제목 없음"}’을(를) 삭제할까요? 약속·지출 기록이 모두 지워지고 되돌릴 수 없어요.`))return;
@@ -1268,12 +1295,25 @@ $("#tabs").addEventListener("click",e=>{
   const x=e.target.closest("[data-deltrip]");if(x){deleteTrip(x.dataset.deltrip);return;}
   const b=e.target.closest("[data-trip]");
   if(b){if(b.dataset.trip!==state.active)switchTrip(b.dataset.trip);return;}
-  if(e.target.closest("#addTrip")){
+});
+$("#addTrip").addEventListener("click",()=>{{
     const prev=cur();const t=newTrip("");t.c=Date.now();
     t.people=prev.people.map(p=>({...nPerson(p),id:uid()}));
     state.trips.push(t);save();switchTrip(t.id);if(shared){loaded.items=loaded.transfers=loaded.plan=true;}
     setTimeout(()=>{$("#tripName").focus();$("#tripName").select();},0);
   }
+});
+$("#tabs").addEventListener("scroll",tabFade,{passive:true});
+$("#tabs").addEventListener("wheel",e=>{const n=e.currentTarget;if(Math.abs(e.deltaY)>Math.abs(e.deltaX)&&n.scrollWidth>n.clientWidth){n.scrollLeft+=e.deltaY;e.preventDefault();}},{passive:false});
+window.addEventListener("resize",()=>tabFade());
+// list of every trip, for when the tab row overflows
+$("#tabsAll").addEventListener("click",()=>{
+  $("#tripList").innerHTML=state.trips.map(t=>`<button class="tl-row${t.id===state.active?" on":""}" data-trip="${t.id}"><span>${esc(tripLabel(t))}</span><small>${(t.people||[]).length}명</small></button>`).join("");
+  $("#tripSheet").hidden=false;
+});
+$("#tripSheet").addEventListener("click",e=>{
+  if(e.target.closest("[data-tlclose]")){$("#tripSheet").hidden=true;return;}
+  const b=e.target.closest("[data-trip]");if(b){$("#tripSheet").hidden=true;if(b.dataset.trip!==state.active)switchTrip(b.dataset.trip);}
 });
 $("#delTitle").addEventListener("click",()=>deleteTrip(cur().id));
 $("#addPersonForm").addEventListener("submit",e=>{
@@ -2001,18 +2041,26 @@ function startLanding(){
   const inp=$("#roomInput"),msg=$("#roomMsg"),prev=$("#roomPreview");
   $("#roomPrefix").textContent="#";
   const update=()=>{
-    const v=inp.value;
+    const v=slugify(inp.value);
     $("#roomCount").textContent=`${v.length} / 30`;
     prev.textContent=v?roomUrl(v):"";
     const ok=ROOM_RE.test(v);
     $("#roomGo").disabled=!ok;
-    msg.textContent=v&&!ok?"2자 이상 입력해주세요":"";if(v&&ok&&msg.dataset.keep!=="1")msg.textContent="";
+    const raw=inp.value.trim();
+    if(/[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(raw))msg.textContent="방 ID는 영어 소문자·숫자·- 로 적어주세요 (한글은 안 돼요)";
+    else if(v&&raw!==v)msg.textContent=`‘${v}’로 만들어져요`;
+    else msg.textContent=v&&!ok?"2자 이상 입력해주세요":"";
+    msg.style.color=raw&&raw!==v&&!/[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(raw)?"var(--blue)":"";
   };
-  inp.addEventListener("input",()=>{const pos=inp.selectionStart;const s=slugify(inp.value);if(s!==inp.value){inp.value=s;try{inp.setSelectionRange(pos,pos);}catch(e){}}update();});
+  const clean=()=>{const raw=inp.value,s=slugify(raw);if(s!==raw)inp.value=s;update();
+    if(/[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(raw))msg.textContent="방 ID는 영어 소문자·숫자·- 로 적어주세요 (한글은 안 돼요)";};
+  // the keyboard owns the text while typing; we only read it
+  inp.addEventListener("input",update);
+  inp.addEventListener("blur",clean);
   $("#roomRandom").addEventListener("click",()=>{inp.value=randomRoom();update();inp.focus();});
   const pinInp=$("#pinInput");
   $("#landingForm").addEventListener("submit",async e=>{
-    e.preventDefault();const id=inp.value;if(!ROOM_RE.test(id))return;
+    e.preventDefault();inp.value=slugify(inp.value);const id=inp.value;update();if(!ROOM_RE.test(id))return;
     const pin=pinInp.value.trim();
     if(pin&&pin.length<4){msg.textContent="비밀번호는 4자 이상이에요";pinInp.focus();return;}
     const btn=$("#roomGo");btn.disabled=true;btn.textContent="확인 중…";

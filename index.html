@@ -403,6 +403,13 @@ body[data-view="plan"] .hero-total,body[data-view="plan"] .hero-sub{display:none
 .klabel{background:#fff;border-radius:8px;padding:4px 8px;font-size:12px;font-weight:700;color:#191F28;box-shadow:0 2px 8px rgba(0,0,0,.15);white-space:nowrap;margin-bottom:34px}
 .istop .addr{display:block;font-size:12px;font-weight:500;color:var(--muted);margin-top:1px}
 .mapico{font-size:12px;margin-left:4px;opacity:.7}
+.maphelp{padding:14px;border-radius:12px;background:var(--red-soft);color:var(--ink-2);font-size:13.5px;line-height:1.55}
+.maphelp>b{display:block;color:var(--red);font-size:14px;margin-bottom:4px}
+.maphelp li b{color:var(--ink)}
+.maphelp p{margin:4px 0}
+.maphelp ol{margin:6px 0;padding-left:18px}
+.maphelp code{background:var(--card);padding:1px 5px;border-radius:5px;font-size:12.5px}
+.kmap .maphelp{height:100%;display:flex;flex-direction:column;justify-content:center;border-radius:0}
 /* place search sheet */
 .psheet{position:fixed;inset:0;z-index:20;display:flex;align-items:flex-end;justify-content:center}
 .psheet[hidden]{display:none}
@@ -420,6 +427,33 @@ body[data-view="plan"] .hero-total,body[data-view="plan"] .hero-sub{display:none
 .psr span{font-size:13px;color:var(--muted);margin-top:2px}
 .psr em{font-style:normal;font-size:12px;color:var(--blue);margin-top:2px}
 #psPlain{align-self:center;font-size:14px;padding:6px}
+/* pick expense names from the plan */
+.from-plan{margin:-6px 0 14px;padding:12px;border-radius:14px;background:var(--fill)}
+.fp-h{font-size:13px;font-weight:700;color:var(--ink-2);margin-bottom:8px}
+.fp-h span{font-weight:500;color:var(--muted);margin-left:4px;font-size:12px}
+.fp-chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.fp-chips::-webkit-scrollbar{display:none}
+.fp{flex:none;display:inline-flex;align-items:center;gap:6px;background:var(--card);border-radius:999px;padding:5px 12px 5px 5px;font-size:14px;font-weight:600;color:var(--ink-2);box-shadow:0 0 0 1px var(--line) inset}
+.fp:hover{box-shadow:0 0 0 1.5px var(--blue) inset}
+.fp b{font-size:11px;font-weight:800;color:#fff;background:var(--muted);border-radius:999px;padding:2px 7px}
+.fp:not(:has(b)){padding-left:12px}
+.fp.used{opacity:.55}
+.fp i{font-style:normal;color:var(--blue);font-weight:800}
+/* pay info & request */
+.paybtn{width:24px;height:24px;border-radius:50%;font-size:12px;display:grid;place-items:center;filter:grayscale(1);opacity:.45}
+.paybtn.on{filter:none;opacity:1}
+.paybtn:hover{background:var(--fill-2)}
+.move2{border-top:1px solid var(--line);padding-bottom:10px}
+.move2:first-child{border-top:0}
+.move2 .row{border-top:0!important;padding-bottom:6px}
+.pays{display:flex;gap:6px;flex-wrap:wrap;margin-left:54px}
+.pay{display:inline-flex;align-items:center;gap:4px;padding:7px 12px;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none}
+.pay.toss{background:#0064FF;color:#fff}
+.pay.kakao{background:#FEE500;color:#191919}
+.pay.bank{background:var(--fill);color:var(--ink-2)}
+.pay.add{background:transparent;color:var(--muted);font-weight:600;padding-left:0}
+.pay.add:hover{color:var(--blue)}
+.req{width:100%;padding:14px;font-size:16px;border-radius:14px;margin-top:16px}
 /* itinerary */
 .iday{border-top:1px solid var(--line);padding:14px 0}
 .iday:first-child{border-top:0;padding-top:4px}
@@ -598,6 +632,11 @@ option:disabled{color:var(--faint)}
 
   <section class="card v-money" aria-labelledby="hItems">
     <div class="card-h"><h2 id="hItems">지출 내역<span class="count" id="itemCount"></span></h2></div>
+    <div class="from-plan" id="fromPlan" hidden>
+      <div class="fp-h">일정에서 고르기 <span>누르면 그 이름으로 지출이 추가돼요</span></div>
+      <div class="fp-chips" id="fpChips"></div>
+    </div>
+    <datalist id="planNames"></datalist>
     <div class="items" id="sheet"></div>
     <p class="warnings" id="warnings"></p>
   </section>
@@ -608,6 +647,7 @@ option:disabled{color:var(--faint)}
     <div class="divider"></div>
     <h3 class="sub-h">이렇게 보내면 끝나요</h3>
     <div class="rows" id="moves"></div>
+    <button class="btn solid req" id="reqBtn">💸 정산 요청 보내기</button>
     <div class="exports">
       <button class="exp" id="copyBtn"><span aria-hidden="true">💬</span>텍스트 복사</button>
       <button class="exp" id="imgBtn"><span aria-hidden="true">🖼️</span>이미지 저장</button>
@@ -638,6 +678,20 @@ option:disabled{color:var(--faint)}
 </div>
 <div class="bottom"><div class="in"><button class="cta" id="addItem">지출 추가하기</button></div></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="psheet" id="paysheet" hidden>
+  <div class="psheet-bg" data-payclose></div>
+  <form class="psheet-box" id="payForm" role="dialog" aria-modal="true" aria-labelledby="payTitle">
+    <div class="psheet-h"><strong id="payTitle">송금 받을 정보</strong><button type="button" class="more" data-payclose aria-label="닫기">✕</button></div>
+    <p class="hint" style="margin:0">정산할 때 이 사람에게 보낼 버튼이 생겨요. 하나만 적어도 돼요.</p>
+    <label class="tx-l" for="payToss">토스 아이디 또는 링크</label>
+    <input class="field" id="payToss" placeholder="예: toss.me/jaein 또는 jaein" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <label class="tx-l" for="payKakao">카카오페이 송금 링크</label>
+    <input class="field" id="payKakao" placeholder="카카오페이 앱 > 송금 > QR/링크로 받기" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <label class="tx-l" for="payBank">은행·계좌번호</label>
+    <input class="field" id="payBank" placeholder="예: 카카오뱅크 3333-01-1234567" autocomplete="off">
+    <button class="btn solid" type="submit" style="padding:14px;margin-top:6px">저장</button>
+  </form>
+</div>
 <div class="psheet" id="psheet" hidden>
   <div class="psheet-bg" data-psclose></div>
   <div class="psheet-box" role="dialog" aria-modal="true" aria-labelledby="psTitle">
@@ -729,7 +783,7 @@ function deleteTrip(id){
 }
 function renderPeople(){
   const t=cur();
-  $("#people").innerHTML=t.people.length?t.people.map(p=>`<span class="member" data-pid="${p.id}">${av(t,p.id)}<input class="in-pname" value="${esc(p.name)}" aria-label="이름" style="--len:${Math.max(2,(p.name||"").length)}"><button class="x" data-delp="${p.id}" aria-label="${esc(p.name)} 삭제">✕</button></span>`).join(""):`<p class="hint">함께한 사람을 먼저 추가해주세요.</p>`;
+  $("#people").innerHTML=t.people.length?t.people.map(p=>`<span class="member" data-pid="${p.id}">${av(t,p.id)}<input class="in-pname" value="${esc(p.name)}" aria-label="이름" style="--len:${Math.max(2,(p.name||"").length)}"><button class="paybtn${hasPay(p)?" on":""}" data-pay="${p.id}" aria-label="${esc(p.name)} 송금 정보" title="송금 받을 계좌·링크">💳</button><button class="x" data-delp="${p.id}" aria-label="${esc(p.name)} 삭제">✕</button></span>`).join(""):`<p class="hint">함께한 사람을 먼저 추가해주세요.</p>`;
   $("#peopleCount").textContent=t.people.length?` ${t.people.length}`:"";
 }
 function payerOptions(t,sel){
@@ -744,7 +798,7 @@ function itemHTML(t,it){
   const crows=t.people.filter(p=>it.shares[p.id]!=="x").map(p=>{const s=it.shares[p.id];const fixed=typeof s==="number";
     return `<div class="crow" data-pid="${p.id}"><span class="cn">${esc(p.name||"이름 없음")}</span><input class="in-share num${fixed?" fixed":""}" inputmode="numeric" value="${fixed?fmt(s):""}" aria-label="${esc(p.name)} 부담액"><small>원</small></div>`;}).join("");
   return `<div class="item" data-iid="${it.id}">
-    <div class="item-row"><input class="in-iname" value="${esc(it.name)}" placeholder="어디에 썼나요?" aria-label="항목 이름"><button class="more del-item" aria-label="항목 삭제">✕</button></div>
+    <div class="item-row"><input class="in-iname" list="planNames" value="${esc(it.name)}" placeholder="어디에 썼나요?" aria-label="항목 이름"><button class="more del-item" aria-label="항목 삭제">✕</button></div>
     <label class="item-amt"><input class="in-amt num" inputmode="numeric" value="${it.amount?fmt(it.amount):""}" placeholder="0" aria-label="결제금액" size="1"><span>원</span></label>
     <div class="item-meta"><span class="payer${it.payer?"":" none"}"><select class="in-payer" aria-label="결제자">${payerOptions(t,it.payer)}</select></span><input class="in-memo" value="${esc(it.memo)}" placeholder="메모 추가" aria-label="메모"></div>
     <div class="parts">${parts}</div>
@@ -759,6 +813,27 @@ function renderSheet(){
   if(!t.people.length){box.innerHTML=`<div class="empty">멤버를 추가하면 지출을 적을 수 있어요.</div>`;return;}
   box.innerHTML=t.items.length?t.items.map(it=>itemHTML(t,it)).join(""):`<div class="empty">아직 지출이 없어요.<br>아래 버튼으로 첫 지출을 추가해보세요.</div>`;
   box.querySelectorAll(".in-amt").forEach(fitAmt);
+  renderFromPlan(t);
+}
+// places / restaurants / stays from the 약속·여행 tab, scheduled ones first in day/time order
+function planPicks(t){
+  const pl=P(t),days=isTrip(t)?tripDays(t):[];
+  const dayOf=i=>days.find(d=>d.i===i);
+  const os=pl.opts.filter(o=>(o.k==="place"||o.k==="menu"||o.k==="stay")&&o.label);
+  const seen=new Set(),out=[];
+  os.map(o=>({o,d:o.k==="stay"?0:(o.day||99)})).sort((a,b)=>a.d-b.d||(a.o.at||"99").localeCompare(b.o.at||"99")||a.o.c-b.o.c).forEach(({o})=>{
+    const key=o.label.trim();if(seen.has(key))return;seen.add(key);
+    const d=o.day&&dayOf(o.day);
+    out.push({id:o.id,label:key,k:o.k,day:o.day||0,tag:o.k==="stay"?"숙소":d?`D${d.i}`:"",memo:d?`Day ${d.i}${d.date?" · "+dlabel(d.date):""}${o.at?" "+o.at:""}`:(o.k==="stay"?"숙소":"")});
+  });
+  return out;
+}
+function renderFromPlan(t){
+  const picks=t.people.length?planPicks(t):[];
+  $("#planNames").innerHTML=picks.map(x=>`<option value="${esc(x.label)}"></option>`).join("");
+  $("#fromPlan").hidden=!picks.length;if(!picks.length)return;
+  const used=new Set(t.items.map(i=>(i.name||"").trim()));
+  $("#fpChips").innerHTML=picks.map(x=>`<button class="fp${used.has(x.label)?" used":""}" data-pick="${x.id}">${x.tag?`<b style="${x.day?`background:${dayColor(x.day)}`:""}">${esc(x.tag)}</b>`:""}<span>${KIND_IC[x.k]} ${esc(x.label)}</span>${used.has(x.label)?"<i>✓</i>":""}</button>`).join("");
 }
 function rerenderItem(it){
   const el=document.querySelector(`.item[data-iid="${it.id}"]`);if(!el)return;
@@ -814,7 +889,12 @@ function recalc(){
     const tx=c.sent[p.id]-c.recv[p.id];
     return `<div class="row">${av(t,p.id)}<div class="mid"><div class="t">${esc(p.name||"이름 없음")}</div><div class="s num">내 몫 ${won(c.share[p.id])} · 결제 ${won(c.paid[p.id])}${tx?` · 송금 ${tx>0?"+":""}${won(tx)}`:""}</div></div><div class="r"><div class="amt num ${cls}">${b===0?"0원":won(Math.abs(b))}</div><div class="lab">${label}</div></div></div>`;
   }).join(""):`<p class="hint">멤버와 지출을 추가하면 결과가 나와요.</p>`;
-  $("#moves").innerHTML=c.moves.length?c.moves.map((m,i)=>`<div class="row">${av(t,m.from)}<div class="mid"><div class="route">${esc(pname(t,m.from))}<span class="arr">→</span>${esc(pname(t,m.to))}</div><div class="s num">${won(m.amount)}</div></div><button class="btn sm" data-mark="${i}">보냈어요</button></div>`).join("")
+  $("#moves").innerHTML=c.moves.length?c.moves.map((m,i)=>{const to=t.people.find(p=>p.id===m.to)||{};
+    const pays=[to.toss?`<a class="pay toss" href="${esc(tossUrl(to.toss,m.amount))}" target="_blank" rel="noopener noreferrer">토스로 보내기</a>`:"",
+      to.kakao?`<a class="pay kakao" href="${esc(safeUrl(to.kakao))}" target="_blank" rel="noopener noreferrer">카카오페이</a>`:"",
+      to.bank?`<button class="pay bank" data-copybank="${m.to}" data-amt="${m.amount}">계좌 복사</button>`:""].join("");
+    return `<div class="move2"><div class="row">${av(t,m.from)}<div class="mid"><div class="route">${esc(pname(t,m.from))}<span class="arr">→</span>${esc(pname(t,m.to))}</div><div class="s num">${won(m.amount)}${to.bank?` · ${esc(to.bank)}`:""}</div></div><button class="btn sm" data-mark="${i}">보냈어요</button></div>
+      <div class="pays">${pays||`<button class="pay add" data-pay="${m.to}">＋ ${esc(pname(t,m.to))}님 송금 정보 등록</button>`}</div></div>`;}).join("")
     :`<div class="allclear">${t.items.length?"모두 정산됐어요 🎉":"아직 보낼 돈이 없어요"}</div>`;
   const groups=[];t.transfers.forEach(x=>{const last=groups[groups.length-1];if(x.g&&last&&last.g===x.g)last.xs.push(x);else groups.push({g:x.g,xs:[x]});});
   $("#done").innerHTML=groups.map(gr=>gr.xs.length>1?(()=>{const x=gr.xs[0],tot=gr.xs.reduce((a,y)=>a+y.amount,0),same=gr.xs.every(y=>y.amount===x.amount);
@@ -837,7 +917,8 @@ const chains=new Map();     // db path -> write promise chain
 let inflight=0;
 const loaded={tid:null,items:false,transfers:false,plan:false};
 let unsubItems=null,unsubTx=null,unsubPlan=null;
-const nTrip=t=>({name:t.name||"",people:(t.people||[]).map(p=>({id:p.id,name:p.name||""})),c:t.c||0});
+const nPerson=p=>{const o={id:p.id,name:p.name||""};if(p.toss)o.toss=p.toss;if(p.kakao)o.kakao=p.kakao;if(p.bank)o.bank=p.bank;return o;};
+const nTrip=t=>({name:t.name||"",people:(t.people||[]).map(nPerson),c:t.c||0});
 const nItem=i=>({name:i.name||"",amount:+i.amount||0,payer:i.payer||"",shares:i.shares||{},memo:i.memo||"",c:i.c||0});
 const nTx=x=>({from:x.from,to:x.to,amount:+x.amount||0,memo:x.memo||"",g:x.g||"",c:x.c||0});
 const emptyPlan=()=>({avail:{},tavail:{},opts:[],votes:{},fix:null,set:{mode:"day",n:2}});
@@ -1167,7 +1248,7 @@ $("#tabs").addEventListener("click",e=>{
   if(b){if(b.dataset.trip!==state.active)switchTrip(b.dataset.trip);return;}
   if(e.target.closest("#addTrip")){
     const prev=cur();const t=newTrip("");t.c=Date.now();
-    t.people=prev.people.map(p=>({id:uid(),name:p.name}));
+    t.people=prev.people.map(p=>({...nPerson(p),id:uid()}));
     state.trips.push(t);save();switchTrip(t.id);if(shared){loaded.items=loaded.transfers=loaded.plan=true;}
     setTimeout(()=>{$("#tripName").focus();$("#tripName").select();},0);
   }
@@ -1199,6 +1280,20 @@ $("#people").addEventListener("click",e=>{
   changedAll();
 });
 let lastPayer="";
+$("#fpChips").addEventListener("click",e=>{
+  const b=e.target.closest("[data-pick]");if(!b)return;
+  const t=cur();if(!t.people.length)return;
+  if(shared&&loaded.tid===t.id&&!loaded.items){toast("불러오는 중이에요. 잠시 후 다시 눌러주세요");return;}
+  const x=planPicks(t).find(p=>p.id===b.dataset.pick);if(!x)return;
+  if(t.items.some(i=>(i.name||"").trim()===x.label)&&!confirm(`‘${x.label}’ 지출이 이미 있어요. 하나 더 추가할까요?`))return;
+  const me=getMe();
+  const payer=t.people.some(p=>p.id===me)?me:t.people.some(p=>p.id===lastPayer)?lastPayer:(t.people[0]?.id||"");
+  t.items.push({id:uid(),name:x.label,amount:0,payer,shares:{},memo:x.memo||"",c:Date.now()});
+  changedAll();
+  const items=document.querySelectorAll("#sheet .item");const r=items[items.length-1];
+  if(r){r.scrollIntoView({block:"center",behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});r.querySelector(".in-amt").focus({preventScroll:true});}
+  toast("금액만 입력하면 돼요");
+});
 $("#addItem").addEventListener("click",()=>{
   const t=cur();if(!t.people.length)return;
   if(shared&&loaded.tid===t.id&&!loaded.items){toast("불러오는 중이에요. 잠시 후 다시 눌러주세요");return;}
@@ -1274,7 +1369,53 @@ $("#txAdd").addEventListener("click",()=>{
   $("#txAmt").value="";$("#txMemo").value="";txTo=new Set();changed();renderTxForm();
   toast(list.length>1?`${list.length}명에게 보낸 기록을 남겼어요`:"기록했어요");
 });
+const hasPay=p=>!!(p&&(p.toss||p.kakao||p.bank));
+function tossUrl(v,amount){
+  let s=String(v||"").trim().replace(/^https?:\/\//i,"").replace(/^toss\.me\//i,"").replace(/\/.*$/,"");
+  return `https://toss.me/${encodeURIComponent(s)}${amount?"/"+Math.round(amount):""}`;
+}
+async function copyText(text){
+  try{await navigator.clipboard.writeText(text);return true;}catch(e){
+    const ta=document.createElement("textarea");ta.value=text;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();
+    let ok=false;try{ok=document.execCommand("copy");}catch(_){}ta.remove();return ok;}
+}
+let payFor=null;
+function openPay(pid){
+  const p=cur().people.find(x=>x.id===pid);if(!p)return;payFor=pid;
+  $("#payTitle").textContent=`${p.name||"이름 없음"}님이 받을 정보`;
+  $("#payToss").value=p.toss||"";$("#payKakao").value=p.kakao||"";$("#payBank").value=p.bank||"";
+  $("#paysheet").hidden=false;setTimeout(()=>$("#payToss").focus(),50);
+}
+$("#paysheet").addEventListener("click",e=>{if(e.target.closest("[data-payclose]"))$("#paysheet").hidden=true;});
+$("#payForm").addEventListener("submit",e=>{e.preventDefault();
+  const p=cur().people.find(x=>x.id===payFor);if(!p)return;
+  const toss=$("#payToss").value.trim(),kakao=$("#payKakao").value.trim(),bank=$("#payBank").value.trim();
+  if(toss)p.toss=toss.slice(0,80);else delete p.toss;
+  if(kakao)p.kakao=kakao.slice(0,200);else delete p.kakao;
+  if(bank)p.bank=bank.slice(0,80);else delete p.bank;
+  $("#paysheet").hidden=true;changedAll();toast(hasPay(p)?"송금 정보를 저장했어요":"송금 정보를 지웠어요");
+});
+$("#people").addEventListener("click",e=>{const b=e.target.closest("[data-pay]");if(b)openPay(b.dataset.pay);});
+$("#reqBtn").addEventListener("click",async()=>{
+  const t=cur(),c=last||compute(t);
+  if(!c.moves.length){toast("보낼 돈이 없어요");return;}
+  const lines=[`💸 [${t.name||"정산"}] 정산 요청`,`총 ${won(c.total)} · ${t.people.length}명${t.people.length?` · 1인 평균 ${won(c.total/t.people.length)}`:""}`,""];
+  c.moves.forEach(m=>{const to=t.people.find(p=>p.id===m.to)||{};
+    lines.push(`${pname(t,m.from)} → ${pname(t,m.to)}  ${won(m.amount)}`);
+    if(to.toss)lines.push(`   토스: ${tossUrl(to.toss,m.amount)}`);
+    if(to.kakao)lines.push(`   카카오페이: ${safeUrl(to.kakao)}`);
+    if(to.bank)lines.push(`   계좌: ${to.bank} (${pname(t,m.to)})`);
+  });
+  lines.push("","자세한 내역 👇",shareUrl());
+  const text=lines.join("\n");
+  if(navigator.share){try{await navigator.share({title:`${t.name||"정산"} 정산 요청`,text});return;}catch(e){if(e&&e.name==="AbortError")return;}}
+  toast(await copyText(text)?"정산 요청을 복사했어요. 단톡방에 붙여넣으세요":"복사가 막혀 있어요");
+});
 $("#moves").addEventListener("click",e=>{
+  const pb=e.target.closest("[data-pay]");if(pb){openPay(pb.dataset.pay);return;}
+  const cb=e.target.closest("[data-copybank]");
+  if(cb){const p=cur().people.find(x=>x.id===cb.dataset.copybank);if(!p)return;
+    copyText(`${p.bank} ${p.name}`).then(ok=>toast(ok?`계좌를 복사했어요 · ${won(+cb.dataset.amt)} 보내주세요`:"복사가 막혀 있어요"));return;}
   const b=e.target.closest("[data-mark]");if(!b||!last)return;
   const m=last.moves[+b.dataset.mark];if(!m)return;
   cur().transfers.push({id:uid(),from:m.from,to:m.to,amount:m.amount,memo:"정산 송금",c:Date.now()});changed();toast("주고받은 돈에 기록했어요");
@@ -1303,6 +1444,7 @@ $("#copyBtn").addEventListener("click",async()=>{
 const DAY_COLORS=["#3182F6","#7C5CFF","#F04452","#03B26C","#FE9800","#00A8C6","#E64980","#6B7684","#3182F6","#7C5CFF"];
 const dayColor=i=>DAY_COLORS[(i-1)%DAY_COLORS.length];
 let kakaoReady=null;
+let mapErr="";
 const hasMapKey=()=>!!(window.KAKAO_MAP_KEY||"").trim();
 function loadKakaoMap(){
   if(!hasMapKey())return Promise.resolve(false);
@@ -1322,9 +1464,12 @@ function searchPlaces(q,near){
     if(!ok)return null;
     return new Promise(res=>{
       const ps=new kakao.maps.services.Places();
+      const S=kakao.maps.services.Status;
       const run=(opt,fallback)=>ps.keywordSearch(q,(data,status)=>{
-        if(status===kakao.maps.services.Status.OK)res(data.slice(0,8));
-        else if(fallback)run({},false);else res([]);
+        if(status===S.OK)res(data.slice(0,8));
+        else if(fallback)run({},false);
+        else if(status===S.ERROR){mapErr="search";res({error:true});}
+        else res([]);
       },opt);
       if(near)run({location:new kakao.maps.LatLng(near.lat,near.lng),radius:20000},true);else run({},false);
     });
@@ -1332,7 +1477,8 @@ function searchPlaces(q,near){
 }
 // one map instance per container, kept across renders; only overlays are redrawn
 const maps={};
-function drawMap(id,points,lines){
+function drawMap(id,points,lines){try{return _drawMap(id,points,lines);}catch(e){console.error(e);const el=document.getElementById(id);if(el)showMapFail(el);}}
+function _drawMap(id,points,lines){
   const el=document.getElementById(id);if(!el)return;
   if(!window.kakao||!kakao.maps||!kakao.maps.Map)return;
   let m=maps[id];
@@ -1373,22 +1519,36 @@ function renderTripMap(t,days,items){
     lines.push({color:dayColor(d.i),path:list.map(o=>({lat:o.lat,lng:o.lng}))});});
   if(!mapDay)placed.filter(o=>!o.day||o.day>days.length).forEach(o=>pts.push({lat:o.lat,lng:o.lng,n:"?",color:"#B0B8C1",pool:true,label:`미정 · ${o.label}`}));
   $("#tripMapEmpty").hidden=!!pts.length;
-  loadKakaoMap().then(ok=>{if(!ok){wrap.hidden=true;return;}drawMap("tripMap",pts,lines);});
+  loadKakaoMap().then(ok=>{if(!ok){showMapFail($("#tripMap"));return;}drawMap("tripMap",pts,lines);});
 }
 function renderPlaceMap(t){
   const el=$("#placeMap");
   if(!hasMapKey()||isTrip(t)){el.hidden=true;return;}
   const os=optsOf(t,"place").filter(o=>o.lat&&o.lng);
-  el.hidden=!os.length;if(!os.length)return;
+  el.hidden=false;
   const ranked=os.map(o=>[o,votersOf(t,o.id).length]).sort((a,b)=>b[1]-a[1]);
   const pts=ranked.map(([o,n],i)=>({lat:o.lat,lng:o.lng,n:String(i+1),color:i===0?"#7C5CFF":"#3182F6",label:`${o.label} · ${n}표`}));
-  loadKakaoMap().then(ok=>{if(ok)drawMap("placeMap",pts,[]);else el.hidden=true;});
+  loadKakaoMap().then(ok=>{if(ok)drawMap("placeMap",pts,[]);else showMapFail(el);});
+}
+// shown in place of a map when the SDK could not load (wrong domain / bad key / blocked)
+function showMapFail(el){
+  if(maps[el.id])return;
+  if(location.protocol==="file:"){el.innerHTML=`<div class="maphelp"><b>파일로 열면 지도가 안 보여요</b><p>카카오맵은 등록된 웹 주소에서만 동작해요. GitHub Pages 주소로 열어주세요.</p></div>`;return;}
+  el.innerHTML=`<div class="maphelp"><b>지도를 불러오지 못했어요</b><p>카카오 디벨로퍼스에서 JavaScript SDK 도메인에 <code>${esc(location.origin)}</code>가 등록됐는지, 카카오맵 사용 설정이 ON인지 확인해주세요.</p></div>`;
 }
 const centroid=t=>{const os=P(t).opts.filter(o=>o.lat&&o.lng);if(!os.length)return null;return {lat:os.reduce((a,o)=>a+o.lat,0)/os.length,lng:os.reduce((a,o)=>a+o.lng,0)/os.length};};
 // search sheet: resolves with {label,url,lat,lng,addr} or {label} (plain) or null (cancel)
 let psResolve=null;
+let mapWarned=false;
 function pickPlace(q,title){
   if(!hasMapKey())return Promise.resolve({label:q});
+  // if Kakao can't load (wrong domain, map not activated), don't block adding: fall back to plain names
+  return loadKakaoMap().then(ok=>{
+    if(!ok){if(!mapWarned){mapWarned=true;toast("카카오맵을 불러오지 못해 이름만 저장했어요");}return {label:q};}
+    return openSheet(q,title);
+  });
+}
+function openSheet(q,title){
   $("#psTitle").textContent=title||"장소 검색";$("#psInput").value=q;$("#psheet").hidden=false;
   $("#psPlain").textContent=`검색 없이 ‘${q}’ 그대로 추가`;$("#psPlain").dataset.q=q;
   runSearch(q);
@@ -1399,7 +1559,9 @@ let psLast=[];
 function runSearch(q){
   const list=$("#psList");list.innerHTML='<p class="hint" style="padding:12px 4px">검색 중…</p>';
   searchPlaces(q,centroid(cur())).then(rs=>{
+    if(location.protocol==="file:"&&(rs===null||rs.error)){list.innerHTML=`<div class="maphelp"><b>파일로 열어서 카카오맵이 막혔어요</b><p>카카오맵은 등록된 웹 주소에서만 동작해요. 내 컴퓨터의 파일(file://)로 열면 검색과 지도가 거절돼요.</p><p>GitHub Pages 주소(https://zaen92.github.io/…)로 열면 바로 돼요. 지금은 ‘그대로 추가’로 이름만 넣을 수 있어요.</p></div>`;return;}
     if(rs===null){list.innerHTML='<p class="hint" style="padding:12px 4px">카카오맵을 불러오지 못했어요. 키와 도메인 설정을 확인해주세요.</p>';return;}
+    if(rs.error){list.innerHTML=`<div class="maphelp"><b>카카오가 검색을 거절했어요</b><p>키는 맞는데 검색 권한이 없는 상태예요. 카카오 디벨로퍼스에서 확인해주세요.</p><ol><li>내 애플리케이션 → 이 앱 → <b>카카오맵 사용 설정 ON</b> (활성화)</li><li>JavaScript 키의 <b>JavaScript SDK 도메인</b>에 <code>${esc(location.origin)}</code> 등록</li></ol><p>바꾼 뒤 1~2분 지나 새로고침하면 돼요. 지금은 ‘그대로 추가’로 이름만 넣을 수 있어요.</p></div>`;return;}
     psLast=rs;
     list.innerHTML=rs.length?rs.map((r,i)=>`<button class="psr" data-psi="${i}"><b>${esc(r.place_name)}</b><span>${esc(r.road_address_name||r.address_name||"")}</span>${r.category_group_name?`<em>${esc(r.category_group_name)}</em>`:""}</button>`).join(""):'<p class="hint" style="padding:12px 4px">검색 결과가 없어요. 다른 이름으로 찾아보거나 그대로 추가하세요.</p>';
   });

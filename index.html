@@ -6,8 +6,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>PLOOP</title>
 <meta name="description" content="여행·모임 정산을 링크 하나로 같이 정리해요">
-<meta property="og:title" content="PLOOP">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ploop">
+<meta property="og:site_name" content="Ploop">
+<meta property="og:title" content="Ploop | Plan + Loop">
 <meta property="og:description" content="링크만 공유하면 누구나 함께 일정 관리부터 정산까지!">
+<meta property="og:url" content="https://zaen92.github.io/PLOOP/">
+<meta property="og:image" content="https://zaen92.github.io/PLOOP/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧾</text></svg>">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -440,9 +447,9 @@ body[data-view="plan"] .hero-total,body[data-view="plan"] .hero-sub{display:none
 .fp.used{opacity:.55}
 .fp i{font-style:normal;color:var(--blue);font-weight:800}
 /* pay info & request */
-.paybtn{width:24px;height:24px;border-radius:50%;font-size:12px;display:grid;place-items:center;filter:grayscale(1);opacity:.45}
-.paybtn.on{filter:none;opacity:1}
-.paybtn:hover{background:var(--fill-2)}
+.paybtn{display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:700;color:var(--sub);background:var(--card);box-shadow:inset 0 0 0 1px var(--fill-2);white-space:nowrap}
+.paybtn:hover{color:var(--blue);box-shadow:inset 0 0 0 1.5px var(--blue)}
+.paybtn.on{background:var(--blue);color:#fff;box-shadow:none}
 .move2{border-top:1px solid var(--line);padding-bottom:10px}
 .move2:first-child{border-top:0}
 .move2 .row{border-top:0!important;padding-bottom:6px}
@@ -783,7 +790,7 @@ function deleteTrip(id){
 }
 function renderPeople(){
   const t=cur();
-  $("#people").innerHTML=t.people.length?t.people.map(p=>`<span class="member" data-pid="${p.id}">${av(t,p.id)}<input class="in-pname" value="${esc(p.name)}" aria-label="이름" style="--len:${Math.max(2,(p.name||"").length)}"><button class="paybtn${hasPay(p)?" on":""}" data-pay="${p.id}" aria-label="${esc(p.name)} 송금 정보" title="송금 받을 계좌·링크">💳</button><button class="x" data-delp="${p.id}" aria-label="${esc(p.name)} 삭제">✕</button></span>`).join(""):`<p class="hint">함께한 사람을 먼저 추가해주세요.</p>`;
+  $("#people").innerHTML=t.people.length?t.people.map(p=>`<span class="member" data-pid="${p.id}">${av(t,p.id)}<input class="in-pname" value="${esc(p.name)}" aria-label="이름" style="--len:${Math.max(2,(p.name||"").length)}"><button class="paybtn${hasPay(p)?" on":""}" data-pay="${p.id}" aria-label="${esc(p.name)} 송금 정보 ${hasPay(p)?"수정":"등록"}" title="송금 받을 계좌·링크"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19"/><path d="M6.5 15h4"/></svg><span>${hasPay(p)?"계좌":"계좌 +"}</span></button><button class="x" data-delp="${p.id}" aria-label="${esc(p.name)} 삭제">✕</button></span>`).join(""):`<p class="hint">함께한 사람을 먼저 추가해주세요.</p>`;
   $("#peopleCount").textContent=t.people.length?` ${t.people.length}`:"";
 }
 function payerOptions(t,sel){
